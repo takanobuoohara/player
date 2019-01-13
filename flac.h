@@ -5,7 +5,7 @@
 class KbFlacDecoder
 {
 private:
-	HANDLE m_hFile;
+	CFile  m_hFile;
 	FLAC__StreamDecoder *m_decoder;
 	FLAC__StreamMetadata_StreamInfo m_stream_info;
 	int    m_block_align;//=(bitspersample/8) * channels
@@ -62,7 +62,7 @@ public:
 KbFlacDecoder::KbFlacDecoder(void)
 {
 	m_decoder = NULL;
-	m_hFile = INVALID_HANDLE_VALUE;
+	//m_hFile = INVALID_HANDLE_VALUE;
 	ZeroMemory(&m_stream_info, sizeof(m_stream_info));
 	m_block_align = 0;
 	m_direct_buf = NULL;
@@ -80,20 +80,20 @@ KbFlacDecoder::~KbFlacDecoder(void)
 BOOL __fastcall KbFlacDecoder::Open(const _TCHAR *cszFileName, SOUNDINFO *pInfo)
 {
 	ZeroMemory(pInfo, sizeof(SOUNDINFO));
-	HANDLE hFile;
 #if UNICODE	
-	hFile = CreateFileW(cszFileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+//	hFile = CreateFileW(cszFileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+//		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	BOOL e = m_hFile.Open(cszFileName, CFile::modeRead | CFile::shareDenyNone);
 #else
 	hFile = CreateFileA(cszFileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
 			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 #endif
-	if (hFile == INVALID_HANDLE_VALUE) {
+	if (e == FALSE) {
 		return FALSE;
 	}
 	FLAC__StreamDecoder *decoder = FLAC__stream_decoder_new();
 
-	m_hFile = hFile;
+//	m_hFile = &hFile;
 	m_decoder = decoder;
 
 	if (FLAC__stream_decoder_init_stream(decoder,
@@ -114,7 +114,7 @@ BOOL __fastcall KbFlacDecoder::Open(const _TCHAR *cszFileName, SOUNDINFO *pInfo)
 		FLAC__stream_decoder_finish(decoder);
 		FLAC__stream_decoder_delete(decoder);
 		m_decoder = decoder = FLAC__stream_decoder_new();
-		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+		m_hFile.SeekToBegin();
 		if (FLAC__stream_decoder_init_ogg_stream(decoder,
 			read_callback,
 			seek_callback,
@@ -157,10 +157,7 @@ void __fastcall KbFlacDecoder::Close(void)
 		FLAC__stream_decoder_delete(m_decoder);
 		m_decoder = NULL;
 	}
-	if (m_hFile != INVALID_HANDLE_VALUE) {
-		CloseHandle(m_hFile);
-		m_hFile = INVALID_HANDLE_VALUE;
-	}
+	m_hFile.Close();
 	ZeroMemory(&m_stream_info, sizeof(m_stream_info));
 }
 /////////////////////////////////////////////////////////////////////////////
@@ -169,7 +166,7 @@ DWORD __fastcall KbFlacDecoder::SetPosition(DWORD dwPos)
 	m_direct_buf = NULL;
 	m_direct_buf_size = m_direct_buf_copied = 0;//write_callback が呼ばれるので必ず必要
 	m_temp_buf_size = m_temp_buf_remain = 0;    //write_callback が呼ばれるので必ず必要
-	DWORD dwPosSample = MulDiv(dwPos, m_stream_info.sample_rate, 1000);
+	DWORD dwPosSample = MulDiv(dwPos, m_stream_info.sample_rate,1000);
 	if (FLAC__stream_decoder_seek_absolute(m_decoder, dwPosSample)) {
 		return dwPos;
 	}
@@ -304,15 +301,15 @@ FLAC__StreamDecoderReadStatus KbFlacDecoder::read_callback(const FLAC__StreamDec
 	unsigned *bytes,
 	void *client_data)
 {
-	HANDLE hFile = ((KbFlacDecoder*)client_data)->m_hFile;
+	CFile *hFile = &((KbFlacDecoder*)client_data)->m_hFile;
 	if (*bytes > 0) {
 		DWORD dwRead = 0;
-		if (!::ReadFile(hFile, buffer, *bytes, &dwRead, NULL)) {
+		if (dwRead = hFile->Read(buffer, *bytes)==0) {
 			return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
 		}
 		else {
-			*bytes = dwRead;
-			return dwRead ? FLAC__STREAM_DECODER_READ_STATUS_CONTINUE : FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
+			//*bytes = dwRead;
+			return *bytes ? FLAC__STREAM_DECODER_READ_STATUS_CONTINUE : FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
 		}
 	}
 	else {
@@ -324,9 +321,8 @@ FLAC__StreamDecoderSeekStatus KbFlacDecoder::seek_callback(const FLAC__StreamDec
 	FLAC__uint64 absolute_byte_offset,
 	void *client_data)
 {
-	HANDLE hFile = ((KbFlacDecoder*)client_data)->m_hFile;
-	LARGE_INTEGER *offset = (LARGE_INTEGER*)&absolute_byte_offset;
-	if (SetFilePointer(hFile, offset->LowPart, &offset->HighPart, FILE_BEGIN) == 0xFFFFFFFF) {
+	CFile *hFile = &((KbFlacDecoder*)client_data)->m_hFile;
+	if (hFile->Seek((LONGLONG)absolute_byte_offset, CFile::begin)) {
 		if (GetLastError() != NO_ERROR) {
 			return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
 		}
@@ -338,16 +334,18 @@ FLAC__StreamDecoderTellStatus KbFlacDecoder::tell_callback(const FLAC__StreamDec
 	FLAC__uint64 *absolute_byte_offset,
 	void *client_data)
 {
-	HANDLE hFile = ((KbFlacDecoder*)client_data)->m_hFile;
-	LARGE_INTEGER *offset = (LARGE_INTEGER*)absolute_byte_offset;
-	offset->HighPart = 0;
-	offset->LowPart = SetFilePointer(hFile, 0, &offset->HighPart, FILE_CURRENT);
-	if (offset->LowPart == 0xFFFFFFFF) {
-		if (GetLastError() != NO_ERROR) {
-			offset->QuadPart = 0;
+	CFile *hFile = &((KbFlacDecoder*)client_data)->m_hFile;
+	*absolute_byte_offset = hFile->GetPosition();
+	//LARGE_INTEGER *offset = (LARGE_INTEGER*)absolute_byte_offset;
+	//offset->HighPart = 0;
+	//offset->LowPart = SetFilePointer(hFile, 0, &offset->HighPart, FILE_CURRENT);
+	//if (offset->LowPart == 0xFFFFFFFF) {
+	if(!*absolute_byte_offset)
+	//	if (GetLastError() != NO_ERROR) {
+	//		offset->QuadPart = 0;
 			return FLAC__STREAM_DECODER_TELL_STATUS_ERROR;
-		}
-	}
+	//	}
+	//}
 	return FLAC__STREAM_DECODER_TELL_STATUS_OK;
 }
 /////////////////////////////////////////////////////////////////////////////
@@ -355,25 +353,30 @@ FLAC__StreamDecoderLengthStatus KbFlacDecoder::length_callback(const FLAC__Strea
 	FLAC__uint64 *stream_length,
 	void *client_data)
 {
-	HANDLE hFile = ((KbFlacDecoder*)client_data)->m_hFile;
-	ULARGE_INTEGER *length = (ULARGE_INTEGER*)stream_length;
-	length->LowPart = GetFileSize(hFile, &length->HighPart);
-	if (length->LowPart == 0xFFFFFFFF) {
-		if (GetLastError() != NO_ERROR) {
-			length->QuadPart = 0;
+	CFile *hFile = &((KbFlacDecoder*)client_data)->m_hFile;
+	*stream_length = hFile->GetLength();
+//	ULARGE_INTEGER *length = (ULARGE_INTEGER*)stream_length;
+//	length->LowPart = GetFileSize(hFile, &length->HighPart);
+//	if (length->LowPart == 0xFFFFFFFF) {
+	if(!*stream_length)
+//		if (GetLastError() != NO_ERROR) {
+//			length->QuadPart = 0;
 			return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
-		}
-	}
+//		}
+//	}
 	return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
 }
 /////////////////////////////////////////////////////////////////////////////
 FLAC__bool KbFlacDecoder::eof_callback(const FLAC__StreamDecoder *decoder, void *client_data)
 {
-	HANDLE hFile = ((KbFlacDecoder*)client_data)->m_hFile;
-	DWORD dwSizeHigh = 0;
-	LONG  lPosHigh = 0;
-	return GetFileSize(hFile, &dwSizeHigh) == SetFilePointer(hFile, 0, &lPosHigh, FILE_CURRENT) &&
-		dwSizeHigh == lPosHigh;
+	CFile *hFile = &((KbFlacDecoder*)client_data)->m_hFile;
+//	DWORD dwSizeHigh = 0;
+//	LONG  lPosHigh = 0;
+//	return GetFileSize(hFile, &dwSizeHigh) == SetFilePointer(hFile, 0, &lPosHigh, FILE_CURRENT) &&
+//		dwSizeHigh == lPosHigh;
+	return (hFile->GetLength() == hFile->GetPosition())?TRUE:FALSE;
+
+
 }
 /////////////////////////////////////////////////////////////////////////////
 

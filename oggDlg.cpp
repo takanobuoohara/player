@@ -639,7 +639,8 @@ int current_section;
 long whsize;
 int ret2;
 
-//#define OUTPUT_BUFFER_NUM   10
+#define OUTPUT_BUFFER_NUM   10
+#define BUFSZ			(4096*6)
 #define OUTPUT_BUFFER_SIZE  BUFSZ
 BYTE bufwav[OUTPUT_BUFFER_SIZE*6];
 BYTE buf[OUTPUT_BUFFER_NUM][OUTPUT_BUFFER_SIZE];
@@ -652,7 +653,7 @@ int tt=0;
 int killw;
 ULONG PlayCursora,WriteCursora;
 double oggsize2=0;
-BYTE bufwav3[OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM*2];
+BYTE bufwav3[OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM*4];
 
 
 char abuf[28];
@@ -1073,9 +1074,80 @@ BOOL COggDlg::OnInitDialog()
 	return TRUE;  // TRUE を返すとコントロールに設定したフォーカスは失われません。
 }
 //////////////////////////////////////////////////////////////////////////////
+int oggf = 0;
+// OggVorbisコールバック関数
+size_t Callback_Read(
+	void* ptr,
+	size_t size,
+	size_t nmemb,
+	void* datasource
+) {
+	FILE *fp = (FILE*)datasource;
+	if (oggf == 0) {
+		__int64 iti = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+		BYTE buf[2];
+		fread(buf, 1, 1, fp);
+		if (buf[0] == 0x4f)
+			oggf = 1;
+		else if (buf[0] == 0x04)
+			oggf = 2;
+		fseek(fp, iti, SEEK_SET);
+	}
+
+	size_t ret=0;
+	if(oggf==1)
+		ret = fread(ptr,size, nmemb,fp);
+	else if (oggf==2) {
+		ret = fread(ptr, size, nmemb, fp);
+		size_t ret2 = ret * size;
+		BYTE* b = (BYTE*)ptr;
+		for (int i = 0; i < (int)ret2; i++) {
+			b[i] = b[i] << 4 | b[i] >> 4;
+			b[i] ^= 0x0f;
+		}
+	}
+	else {
+		ret = 0;
+	}
+
+	return ret;
+
+}
+
+int Callback_Seek(
+	void *datasource,
+	ogg_int64_t offset,
+	int whence
+) {
+	FILE *fp = (FILE*)datasource;
+	return fseek(fp, offset, whence);
+}
+
+int Callback_Close(void *datasource) {
+	oggf = 0;
+	return 0;
+}
+
+long Callback_Tell(void *datasource) {
+	FILE *fp = (FILE*)datasource;
+	return ftell(fp);
+}
+
+ov_callbacks callbacks = {
+	Callback_Read,
+	Callback_Seek,
+	Callback_Close,
+	Callback_Tell
+};
+
+
+
+
 long LoadOggVorbis(const TCHAR *file_name, int word, char **ogg,CSliderCtrl &m_time)
 {
 	int eof=0;
+	oggf = 0;
 	FILE *fp;
 	long size = 0;
 	vorbis_info *vi;
@@ -1090,7 +1162,7 @@ long LoadOggVorbis(const TCHAR *file_name, int word, char **ogg,CSliderCtrl &m_t
 		return -1;
 	}
 	/* OggVorbis初期化 */
-	if(ov_open(fp, &vf, NULL, 0) < 0) {
+	if(ov_open_callbacks(fp, &vf, NULL, 0,callbacks) < 0) {
       fprintf(stderr,"Input does not appear to be an Ogg bitstream.\n");
 			fclose(fp);
       return -1;
@@ -1938,7 +2010,7 @@ void COggDlg::play()
 		mp3__.Load(ss);
 
 		wavch=si1.dwChannels;
-		wavbit=si1.dwSamplesPerSec;
+		wavbit = si1.dwSamplesPerSec;
 		wavsam = si1.dwBitsPerSample;
 		loop1=0;stitle="";
 //		loop2=(int)(((float)(((float)si1.dwLength)*44.1f))/(44100.0f/((float)((wavch==2)?wavbit:(wavbit/2)))));
@@ -1990,11 +2062,16 @@ void COggDlg::play()
 			else {
 			}
 		}
-		wavbit = sikpi.dwSamplesPerSec;	wavch = sikpi.dwChannels;	loop1 = 0; oggsize = loop2 = (int)((double)sikpi.dwLength*((double)sikpi.dwSamplesPerSec / ((wavch == 1) ? 2.0 : 1.0)) / 1000.0 / (wavsam / 16.0));
+		wavbit = sikpi.dwSamplesPerSec;	wavch = sikpi.dwChannels;	loop1 = 0; oggsize = loop2 = (int)((double)sikpi.dwLength*((double)sikpi.dwSamplesPerSec / ((wavch == 1) ? 2.0 : 1.0)) / 1000.0);
 		wavsam = sikpi.dwBitsPerSample;
+		wavch = sikpi.dwChannels;
 		si1.dwSamplesPerSec = wavbit;
 		si1.dwChannels = wavch;
 		si1.dwBitsPerSample = wavsam;
+		if (sikpi.dwLength == (DWORD)-1) loop2 = 0;
+		data_size = oggsize = loop2*(wavsam / 4);
+		m_time.SetRange(0, (data_size) / (wavsam / 4), TRUE);
+		flac_.SetPosition(kmp, 0);
 		kbps = 0;
 		CFile ff;
 		ff.Open(filen, CFile::modeRead | CFile::shareDenyNone, NULL);
@@ -2177,10 +2254,6 @@ void COggDlg::play()
 		if (i != 0x300000) {
 			m_mp3jake.EnableWindow(TRUE);
 		}
-		if (sikpi.dwLength == (DWORD)-1) loop2 = 0;
-		data_size = oggsize = loop2*(wavsam / 4);
-		m_time.SetRange(0, (data_size) / (wavsam / 4), TRUE);
-		flac_.SetPosition(kmp, 0);
 		wav_start();
 	}
 	else if (mode == -9) { // M4a
@@ -2203,11 +2276,15 @@ void COggDlg::play()
 			else {
 			}
 		}
-		wavbit = sikpi.dwSamplesPerSec;	wavch = sikpi.dwChannels;	loop1 = 0; oggsize=loop2 = (int)((double)sikpi.dwLength*((double)sikpi.dwSamplesPerSec / ((wavch == 1) ? 2.0 : 1.0)) / 1000.0);
 		wavsam = sikpi.dwBitsPerSample;
+		wavbit = sikpi.dwSamplesPerSec;	wavch = sikpi.dwChannels;	loop1 = 0; oggsize = loop2 = (int)((float)sikpi.dwLength/ (float)1000.0f* (float)sikpi.dwSamplesPerSec);
 		si1.dwSamplesPerSec = wavbit;
 		si1.dwChannels = wavch;
 		si1.dwBitsPerSample = wavsam;
+		if (sikpi.dwLength == (DWORD)-1) loop2 = 0;
+		data_size = oggsize = loop2*(wavsam / 4);
+		m_time.SetRange(0, (data_size) / (wavsam / 4), TRUE);
+		m4a_.SetPosition(kmp, 0);
 		kbps = 0;
 		CFile ff;
 		ff.Open(filen, CFile::modeRead | CFile::shareDenyNone, NULL);
@@ -2311,10 +2388,6 @@ void COggDlg::play()
 			m_mp3jake.EnableWindow(TRUE);
 		}
 
-		if (sikpi.dwLength == (DWORD)-1) loop2 = 0;
-		data_size = oggsize = loop2 * 4;
-		m_time.SetRange(0, (data_size) / 4, TRUE);
-		m4a_.SetPosition(kmp, 0);
 		wav_start();
 
 	}else if(mode==-3){
@@ -2437,10 +2510,13 @@ void COggDlg::play()
 	}
 
 	WAVEFORMATEX wfx1;
-    wfx1.wFormatTag = WAVE_FORMAT_PCM;
-    wfx1.nChannels = wavch;
+	if(wavsam<0)
+	    wfx1.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+	else
+		wfx1.wFormatTag = WAVE_FORMAT_PCM;
+	wfx1.nChannels = wavch;
     wfx1.nSamplesPerSec = wavbit;
-	wfx1.wBitsPerSample = wavsam;
+	wfx1.wBitsPerSample = abs(wavsam);
     wfx1.nBlockAlign = wfx1.nChannels * wfx1.wBitsPerSample / 8;
     wfx1.nAvgBytesPerSec = wfx1.nSamplesPerSec * wfx1.nBlockAlign;
     wfx1.cbSize = 0;
@@ -2493,17 +2569,20 @@ void COggDlg::play()
 	wfx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 	wfx.Format.nChannels = nChannels;
 	wfx.Format.nSamplesPerSec = wavbit;
-	wfx.Format.wBitsPerSample = wavsam;
+	wfx.Format.wBitsPerSample = abs(wavsam);
 	wfx.Format.nBlockAlign = (WORD)(wfx.Format.wBitsPerSample / 8 * wfx.Format.nChannels);
 	wfx.Format.nAvgBytesPerSec = (DWORD)(wfx.Format.nSamplesPerSec * wfx.Format.nBlockAlign);
 	wfx.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
 	wfx.dwChannelMask = targetSpeakers;
-	wfx.SubFormat = GUID_SUBTYPE_PCM;
-
+	if(wavsam < 0)
+		wfx.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+	else
+		wfx.SubFormat = GUID_SUBTYPE_PCM;
 	if(wavbit2!=wavbit||wavsam==24||si1.dwBitsPerSample||sikpi.dwBitsPerSample){
 		ReleaseDXSound();
 		if(WASAPIInit()==0) init(m_hWnd, wavbit);
 	}
+	wavsam = abs(wavsam);
 	wavbit2=wavbit;
 	int i,iii=0;
 	double ik=32.0;
@@ -2531,7 +2610,7 @@ void COggDlg::play()
 		ZeroMemory(&dsbd, sizeof(DSBUFFERDESC));
 		dsbd.dwSize = sizeof(DSBUFFERDESC);
 		dsbd.dwFlags = DSBCAPS_CTRLPOSITIONNOTIFY | DSBCAPS_LOCSOFTWARE | DSBCAPS_GLOBALFOCUS | DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_CTRLVOLUME;// | DSBCAPS_CTRL3D;
-		dsbd.dwBufferBytes = OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM;
+		dsbd.dwBufferBytes = OUTPUT_BUFFER_SIZE*10;
 		if (wavch > 2)
 			dsbd.lpwfxFormat = (LPWAVEFORMATEX)&wfx;
 		else
@@ -2684,7 +2763,7 @@ void COggDlg::play()
 	if(mode==-3) endf=1;
 	loopcnt=0;
 	if(pl&&plw){
-		int plc;
+		int plc=1;
 		if(mode==-10)
 			plc=pl->Add(tagfile,mode,loop1,loop2,tagname,tagalbum,filen,0,(oggsize/(2*wavch*wavbit/4)/((mode==-9)?4:1)),1);
 		else if (mode == -9 || mode == -8) {
@@ -2694,12 +2773,19 @@ void COggDlg::play()
 				), 1);
 		}
 		else if (mode == -3) {
-			if(oggsize==0)
-				plc=pl->Add(tagfile,mode,loop1,loop2,tagname,tagalbum,filen,0,-1,1);
+			if (oggsize == 0)
+				if (mode == -3 && fnn.Find(L".hes") == -1)
+					plc = pl->Add(tagfile, mode, loop1, loop2, tagname, tagalbum, filen, 0, -1, 1);
+				else
+					plc = pl->chk(fnn, mode, tagname, filen, 0);
 			else
-				plc=pl->Add(tagfile,mode,loop1,loop2,tagname,tagalbum,filen,0,oggsize/(2*wavch*wavbit),1);
+				if (mode == -3 && fnn.Find(L".hes") == -1)
+					plc=pl->Add(tagfile,mode,loop1,loop2,tagname,tagalbum,filen,0,oggsize/(2*wavch*wavbit),1);
+				else
+					plc = pl->chk(fnn, mode, tagname, filen, 0);
 		}else
 			plc=pl->Add(fnn,mode,loop1,loop2,tagname,tagalbum,filen,ret2,oggsize/(2*wavch*wavbit));
+
 		if(plc==-1){
 			int i=pl->m_lc.GetItemCount()-1;
 			plcnt=i;
@@ -3831,7 +3917,7 @@ int readkpi(BYTE*bw,int cnt)
 			b[i] = (short)c;
 		}
 	}
-	if(sss=="spc"){
+	if(sss=="spc" || sss.Left(3)=="hes"){
 		if(savedata.spc!=1)
 			if (wavsam == 24) {
 				for (int i = 0; i < cnt / 3; i++) {
@@ -3917,13 +4003,20 @@ int playwavm4a(BYTE* bw, int old, int l1, int l2)
 {
 	//データ読み込み
 	int rrr = readm4a(bw + old, l1);
-	playb += (l1 + l2) / ((wavch == 1 || wavch == 2) ? 4 : (wavch * 2));
-	if (oggsize / ((wavch == 1) ? 1 : 1) - 44100 <= playb * 4) {
+	playb += (int)((float)(l1 + l2) / ((wavch == 1 || wavch == 2) ? (float)4 : (float)(wavch * 2)) / ((float)wavsam / (float)16));
+//	if (oggsize / ((wavch == 1) ? 1 : 1) - 44100 <= playb * 4) {
+	//	if (savedata.saveloop == FALSE) {
+		//	l1 = rrr;  fade1 = 1;
+//			return l1;
+	//	}
+	//}
+	if (oggsize / ((wavch == 1) ? 2 : 1) <= (int)(playb * wavch * 2 * (wavsam / 16.0))) {
 		if (savedata.saveloop == FALSE) {
-			l1 = rrr;  fade1 = 1;
+			l1 = rrr; fade1 = 1;
 			return l1;
 		}
 	}
+
 	if (l1 != rrr) {
 		if (endf == 1) {
 			l1 = rrr; fade1 = 1;
@@ -3955,12 +4048,12 @@ int playwavm4a(BYTE* bw, int old, int l1, int l2)
 int readm4a(BYTE*bw, int cnt)
 {
 	_set_se_translator(trans_func);
-	DWORD cnt1 = og->sikpi.dwUnitRender * 2, cnt2 = (DWORD)cnt, cnt4; if (cnt1 == 0) cnt1 = 1024;
+	DWORD cnt1 = og->sikpi.dwUnitRender, cnt2 = (DWORD)cnt, cnt4; if (cnt1 == 0) cnt1 = 4096;
 	DWORD r = 0;
-	try {
+	{
 		for (;;) {
 			if (cnt2 <= cnt3) { r = 1; break; }
-			r = m4a_.Render(og->kmp, (BYTE*)bufkpi + cnt3, cnt1);
+			r = m4a_.Render(og->kmp, (BYTE*)bufkpi+cnt3, cnt1);
 			if (r == 0) break;
 			cnt3 += r;
 		}
@@ -3968,8 +4061,6 @@ int readm4a(BYTE*bw, int cnt)
 		if (r == 0) cnt = 0;
 		memcpy(bufkpi2, bufkpi, cnt);
 		unsigned short *bf1, *bf2; bf1 = (unsigned short*)bw; bf2 = (unsigned short*)bufkpi2;
-//		int fw = playb % (wavch);
-//		bf2 += fw;
 		int cnt1 = cnt / 2;
 		switch (wavch)
 		{
@@ -4087,13 +4178,7 @@ int readm4a(BYTE*bw, int cnt)
 			wl += cnt;
 		}
 		lenl += cnt;
-		//	playb+=cnt/4;
 	}
-	catch (SE_Exception e) {
-	}
-	catch (_EXCEPTION_POINTERS *ep) {
-	}
-	catch (...) {}
 	if (cnt4<cnt) cnt = cnt4;
 	return cnt;
 }
@@ -4103,7 +4188,7 @@ int playwavflac(BYTE* bw, int old, int l1, int l2)
 	//データ読み込み
 	playb += (l1 + l2) / (wavsam / 4);
 	int rrr = readflac(bw + old, l1);
-	if (oggsize / ((wavch == 1) ? 2 : 1) <= (int)(playb * wavch*2* (wavsam / 16.0))) {
+	if (oggsize / ((wavch == 1) ? 2 : 1) <= (int)(playb * wavch * 2 * (wavsam / 16.0))) {
 		if (savedata.saveloop == FALSE) {
 			l1 = rrr; fade1 = 1;
 			return l1;
@@ -5118,13 +5203,13 @@ void COggDlg::timerp()
 		if(filen.Left(2)=="★")		s.Format(_T("file:動画"));
 		if(mode==-10 || mode == -9 || mode == -8){
 			CString g;g=""; g=filen; g.MakeLower();
-			if(g.Right(4)==".mp3") g="(mp3)";
-			if(g.Right(4)==".rmp") g="(rmp)";
-			if(g.Right(4)==".mp2") g="(mp2)";
-			if(g.Right(4)==".mp1") g="(mp1)";
-			if (g.Right(4) == ".m4a") g = "(m4a)";
-			if (g.Right(4) == ".aac") g = "(aac)";
-			if (g.Right(5) == ".flac") g = "(flac)";
+			if(g.Right(4)==L".mp3") g= L"(mp3)";
+			if(g.Right(4)==L".rmp") g= L"(rmp)";
+			if(g.Right(4)==L".mp2") g= L"(mp2)";
+			if(g.Right(4)==L".mp1") g= L"(mp1)";
+			if (g.Right(4) == L".m4a") g = L"(m4a)";
+			if (g.Right(4) == L".aac") g = "L(aac)";
+			if (g.Right(5) == L".flac") g = L"(flac)";
 			s.Format(_T("file:音声ファイル%s"),g);
 		}
 		if(mode==-2||mode==-3) sss=filen.Right(filen.GetLength()-filen.ReverseFind('.')-1);
@@ -5242,7 +5327,10 @@ void COggDlg::timerp()
 				s.Format(_T("data:%3dk(VBR) %dHz"), (kbps == 0) ? mkps : kbps , si1.dwSamplesPerSec);
 			else
 				if(mode==-9)
-					s.Format(_T("data:%3dk %dHz %dch"), (kbps == 0) ? mkps : kbps,si1.dwSamplesPerSec,wavch);
+					if( ((kbps == 0) ? mkps : kbps) ==0)
+						s.Format(_T("data:%dHz %dch %dbit (ALAC)"), si1.dwSamplesPerSec,wavch,wavsam);
+					else
+						s.Format(_T("data:%3dk %dHz %dch (AAC)"), (kbps == 0) ? mkps : kbps,si1.dwSamplesPerSec,wavch);
 				else
 					s.Format(_T("data:%3dk %dHz"), (kbps == 0) ? mkps : kbps, si1.dwSamplesPerSec);
 			moji(s,1,48,0x7fffff);
@@ -7156,6 +7244,8 @@ void COggDlg::Speana()
 	//ステレオ44.1k(char)→モノラル44.1k(short)へ
 	short buf2[BUFSZ1*6],bufL[BUFSZ1*6],bufR[BUFSZ1*6],buf3[BUFSZ1*6];
 	Int24 *buf324;
+	DWORD *buf332;
+	LONGLONG *buf364;
 	char *buf4; buf4=(char*)buf3;
 	int bui;
 	//プレイ位置から獲得
@@ -7167,14 +7257,36 @@ void COggDlg::Speana()
 	memcpy(bufwav3+(OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM),bufwav3,OUTPUT_BUFFER_SIZE*2);
 	memcpy(buf4,bufwav3+PlayCursor,16384);
 	buf324 = (Int24*)(bufwav3 + PlayCursor);
-	if (wavsam == 24) {
+	buf332 = (DWORD*)(bufwav3 + PlayCursor);
+	buf364 = (LONGLONG*)(bufwav3 + PlayCursor);
+	if (wavsam == 64) {
 		for (i = 0; i < BUFSZ1 / 4; i++) {
-			bui = (int)buf324[i*2]/256;
-			bui += (int)buf324[i*2 + 1]/256;
+			bui = (int)(buf364[i * 2] / ((LONGLONG)65536L * (LONGLONG)65556L));
+			bui += (int)(buf364[i * 2 + 1] / ((LONGLONG)65536L * (LONGLONG)65556L));
 			bui /= 2;
 			buf2[i] = bui;
-			bufL[i] = (int)buf324[i*2]/256;
-			bufR[i] = (int)buf324[i*2 + 1]/256;
+			bufL[i] = (int)(buf364[i * 2] / ((LONGLONG)65536L * (LONGLONG)65556L));
+			bufR[i] = (int)(buf364[i * 2 + 1] / ((LONGLONG)65536L * (LONGLONG)65556L));
+		}
+	}
+	else if (wavsam == 32) {
+		for (i = 0; i < BUFSZ1 / 4; i++) {
+			bui = (int)buf332[i*2]/(256*256);
+			bui += (int)buf332[i*2 + 1]/ (256 * 256);
+			bui /= 2;
+			buf2[i] = bui;
+			bufL[i] = (int)buf324[i*2]/ (256 * 256);
+			bufR[i] = (int)buf324[i*2 + 1]/ (256 * 256);
+		}
+	}
+	else if (wavsam == 24) {
+		for (i = 0; i < BUFSZ1 / 4; i++) {
+			bui = (int)buf324[i * 2] / 256;
+			bui += (int)buf324[i * 2 + 1] / 256;
+			bui /= 2;
+			buf2[i] = bui;
+			bufL[i] = (int)buf324[i * 2] / 256;
+			bufR[i] = (int)buf324[i * 2 + 1] / 256;
 		}
 	}
 	else {
@@ -7449,7 +7561,7 @@ void COggDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 				else if (mode == -8) {
 					playb = curpos;
 					if (1) {
-						flac_.SetPosition(kmp, (DWORD)((double)playb / (((double)wavbit*(double)wavch) / 2000.0)));
+						flac_.SetPosition(kmp, (DWORD)((double)playb / (((double)playb / ((double)wavbit*(double)wavch)) / 2000.0)));
 						sek = TRUE;
 						cnt3 = 0;
 						timer.SetEvent();
@@ -7557,7 +7669,7 @@ void COggDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 				else if (mode == -8) {
 					playb = curpos;
 					if (1) {
-						flac_.SetPosition(kmp, (DWORD)((double)playb / (((double)wavbit*(double)wavch) / 2000.0)));
+						flac_.SetPosition(kmp, (DWORD)((double)playb / (((double)playb / ((double)wavbit*(double)wavch)) / 2000.0)));
 						sek = TRUE;
 						cnt3 = 0;
 						timer.SetEvent();
@@ -7654,7 +7766,11 @@ void COggDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 				}
 				else if (mode == -8) {
 					if (1) {
-						flac_.SetPosition(kmp, (DWORD)((double)playb / (((double)wavbit*(double)wavch) / 2000.0)));
+						double ab = (double)(wavbit) * (double)(wavch);
+						ab /= 2000.0;
+						ab = (double)(playb) / ab;
+						flac_.SetPosition(kmp, (DWORD)ab );
+//						flac_.SetPosition(kmp, (DWORD)(((double)playb / (((double)playb / ((double)wavbit*(double)wavch)*((double)wavsam / 16.0f)))) / 2000.0));
 						sek = TRUE;
 						cnt3 = 0;
 						timer.SetEvent();
@@ -8138,7 +8254,7 @@ void plus2(int &c)
 {
 	CString ss=sswk;
 					hDLLk1[kpicnt]=LoadLibrary(ss);
-					pFunck[kpicnt]=(pfnGetKMPModule)GetProcAddress(hDLLk1[kpicnt],"kmp_GetTestModule");
+					pFunck[kpicnt]=(pfnGetKMPModule)GetProcAddress(hDLLk1[kpicnt], SZ_KMP_GETMODULE);
 					if(pFunck[kpicnt]){
 						{
 							mod1[kpicnt]=pFunck[kpicnt]();
@@ -8172,7 +8288,7 @@ void COggDlg::plug(CString ff,KMPMODULE *mod)
 }
 void COggDlg::plugloop(CString ff)
 {
-	CString s,ss,ft;
+	CString s,ss;
 	_tchdir(ff);
 	CFileFind f;
 	if(f.FindFile(_T("*.kpi"))){
@@ -8192,8 +8308,6 @@ void COggDlg::plugloop(CString ff)
 		}while( b );
 	}
 	f.Close();
-	CString dir[500];
-	int cdd=0;
 	CFileFind cf1;
 	if(cf1.FindFile(_T("*.*")) != 0){
 		int h=1;
@@ -8203,17 +8317,14 @@ void COggDlg::plugloop(CString ff)
 			if(!(ss =="." || ss == "..")){
 					if(cf1.IsDirectory()!=0){ //フォルダ？
 						if(ff.Right(1)=="\\")
-							dir[cdd]=ff+cf1.GetFileName();
+							plugloop(ff+cf1.GetFileName());
 						else
-							dir[cdd]=ff+_T("\\")+cf1.GetFileName();
-						cdd++;
+							plugloop(ff+_T("\\")+cf1.GetFileName());
 					}
 			}
 		}
 	}
 	cf1.Close();
-	for(int k=0;k<cdd;k++)
-		plugloop(dir[k]);
 }
 void COggDlg::OnBnmp3jake()
 {

@@ -44,7 +44,7 @@ extern UINT WASAPIHandleNotifications(LPVOID lpvoid);
 extern ULONG WAVDALen;
 extern UINT ttt;
 extern int wavch,wavbit, wavsam;
-#define BUFSZ			(2048*6)
+#define BUFSZ			((UINT)4096*6)
 #define HIGHDIV			4
 #define BUFSZH			(BUFSZ/HIGHDIV)
 #define SQRT_BUFSZ2		64
@@ -113,10 +113,13 @@ CString COggDlg::init(HWND hwnd,int sm)
 //		//PCMWAVEFORMAT p;
 		WAVEFORMATEX p;
 		ZeroMemory(&p,sizeof(p));
-		p.wFormatTag=WAVE_FORMAT_PCM;
+		if (wavsam<0)
+			p.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+		else
+			p.wFormatTag = WAVE_FORMAT_PCM;
 		p.nChannels= wavch;
 		p.nSamplesPerSec= wavbit;
-		p.wBitsPerSample = wavsam;
+		p.wBitsPerSample = abs(wavsam);
 		p.nBlockAlign = p.nChannels * p.wBitsPerSample / 8;
 		p.nAvgBytesPerSec = p.nSamplesPerSec * p.nBlockAlign;
 		p.cbSize = 0;
@@ -198,7 +201,7 @@ extern int playwavkpi(BYTE* bw,int old,int l1,int l2);
 extern int playwavmp3(BYTE* bw,int old,int l1,int l2);
 extern int playwavflac(BYTE* bw, int old, int l1, int l2);
 extern int playwavm4a(BYTE* bw, int old, int l1, int l2);
-extern BYTE bufwav3[OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM*6];
+extern BYTE bufwav3[OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM * 4];
 extern int ps;
 extern COggDlg *og;
 extern BOOL thn;
@@ -214,64 +217,67 @@ UINT HandleNotifications(LPVOID)
 {
 	DWORD hr = DS_OK;
 	DWORD hRet = 0;
-	thn=FALSE;
-	thn1=FALSE;
+	thn = FALSE;
+	thn1 = FALSE;
 	char* pdsb1;
 	char* pdsb2;
-	syukai=0;
-	HANDLE ev[] = {(HANDLE)og->timer};
-	ULONG PlayCursor,WriteCursor=0,oldw=OUTPUT_BUFFER_SIZE*2,oldw2;
+	syukai = 0;
+	//	char bufwav2[OUTPUT_BUFFER_SIZE];
+	HANDLE ev[] = { (HANDLE)og->timer };
+	//	ULONG PlayCursor,WriteCursor=OUTPUT_BUFFER_SIZE*4,oldw=OUTPUT_BUFFER_SIZE*4;
+	ULONG PlayCursor, WriteCursor = 0, oldw = OUTPUT_BUFFER_SIZE * 4, oldw2;
 	m_dsb->SetCurrentPosition(0);
-	if(mode==-10){
-		oldw=OUTPUT_BUFFER_SIZE*2;
+	if (mode == -10) {
+		oldw = OUTPUT_BUFFER_SIZE * 2;
 		og->timer.SetEvent();
 	}
-	fade1=0;
-	for(;;){
-		DWORD  dwDataLen = WAVDALen/10;
-		if(syukai==2) {thn=TRUE;AfxEndThread(0);}
-		if(syukai==1) {syukai2=1;continue;}
-			::WaitForMultipleObjects(1, ev, FALSE, 40);
-			if (sek == 1) {
-				if (m_dsb)m_dsb->Stop();
-				oldw = 0;
-				if ((mode >= 10 && mode <= 20) || mode < -10) {
-					playwavadpcm(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
-				}
-				else if (mode == -10) {
-					playwavmp3(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
-				}
-				else if (mode == -3) {
-					playwavkpi(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
-				}
-				else if (mode == -8) {
-					playwavflac(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
-				}
-				else if (mode == -9) {
-					playwavm4a(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
-				}
-				else {
-					playwavds2(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
-				}
-				oldw = OUTPUT_BUFFER_SIZE / 12 * wavch * 2; WriteCursor = OUTPUT_BUFFER_SIZE / 12 * wavch * 2;
-				if(m_dsb)m_dsb->SetCurrentPosition(0);
-				if(m_dsb)m_dsb->Play(0,0,DSBPLAY_LOOPING);
-				sek=FALSE;
-				//break;
+	fade1 = 0;
+	for (;;) {
+		DWORD  dwDataLen = WAVDALen / 10;
+		if (syukai == 2) { thn = TRUE; AfxEndThread(0); }
+		if (syukai == 1) { syukai2 = 1; continue; }
+		::WaitForMultipleObjects(1, ev, FALSE, 10);
+		if (sek == 1) {
+			if (m_dsb)m_dsb->Stop();
+			oldw = 0;
+			if ((mode >= 10 && mode <= 20) || mode < -10) {
+				playwavadpcm(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
 			}
-			if(thn1) {thn=TRUE;AfxEndThread(0);}
-//		}
-		if(ps==1) continue;
-		if(m_dsb)m_dsb->GetCurrentPosition(&PlayCursor, &WriteCursor);//再生位置取得
-		int len1=0,len2=0,len3,len4,len5;
-		len1=(int)WriteCursor-(int)oldw;//書き込み範囲取得10
-		len2=0;
-		if (len1 == 0 && len2 == 0) continue;
-		if(len1<0){
-			len1=OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM-oldw; len2= WriteCursor;}
-		if(len2<0)
-			len2=0;
-		len4=len1+len2;
+			else if (mode == -10) {
+				playwavmp3(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
+			}
+			else if (mode == -3) {
+				playwavkpi(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
+			}
+			else if (mode == -8) {
+				playwavflac(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
+			}
+			else if (mode == -9) {
+				playwavm4a(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
+			}
+			else {
+				playwavds2(bufwav3, oldw, OUTPUT_BUFFER_SIZE / 12 * wavch * 2, 0);//データ獲得
+			}
+			oldw = OUTPUT_BUFFER_SIZE / 12 * wavch * 2; WriteCursor = OUTPUT_BUFFER_SIZE / 12 * wavch * 2;
+			oldw = OUTPUT_BUFFER_SIZE * 4; WriteCursor = OUTPUT_BUFFER_SIZE * 4;
+
+			if(m_dsb)m_dsb->SetCurrentPosition(0);
+			if(m_dsb)m_dsb->Play(0,0,DSBPLAY_LOOPING);
+			sek=FALSE;
+		}
+		if(thn1) {thn=TRUE;AfxEndThread(0);}
+		if (ps == 1) continue;
+		if (m_dsb)m_dsb->GetCurrentPosition(&PlayCursor, &WriteCursor);//再生位置取得
+		int len1 = 0, len2 = 0, len3, len4;
+		len1 = (int)WriteCursor - (int)oldw;//書き込み範囲取得
+		len2 = 0;
+		if (len1<0) {
+			len1 = (4096 * 6 )*10 - oldw; len2 = WriteCursor;
+		}
+		if (len2<0)
+			len2 = 0;
+		len4 = len1 + len2;
+
 		if((mode>=10 && mode<=20) || mode<-10)
 			playwavadpcm(bufwav3,oldw,len1,len2);//データ獲得
 		else if(mode==-10)
@@ -284,7 +290,6 @@ UINT HandleNotifications(LPVOID)
 			playwavm4a(bufwav3, oldw, len1, len2);//データ獲得
 		else
 			playwavds2(bufwav3,oldw,len1,len2);//データ獲得
-		len5 = len4;
 		oldw2 = oldw;
 		if (fade1) {
 			for (int jj = 0; jj < PlayCursor/wavch; jj++) {
@@ -305,11 +310,10 @@ UINT HandleNotifications(LPVOID)
 		if(m_dsb){
 			m_dsb->Lock(oldw,len4,(LPVOID *)&pdsb1,(DWORD*)&len3,(LPVOID *)&pdsb2,(DWORD*)&len4,0);
 			thn=FALSE;
-			Sleep(20);
+			Sleep(40);
 			thn=FALSE;
 			memcpy(pdsb1,bufwav3+oldw,len3);
 			if(len4!=0)memcpy(pdsb2,bufwav3,len4);
-			len5 += len3 + len4;
 			if(m_dsb)m_dsb->Unlock(pdsb1,len3,pdsb2,len4);
 			oldw=WriteCursor;
 		}
@@ -487,9 +491,13 @@ UINT WASAPIHandleNotifications(LPVOID lpvoid)
 		pAudioClient->GetBufferSize(&bufferFrameCount);
 		int len1 = 0, len2 = 0, len3=0, len4, len5;
 		len1 = bufferFrameCount;
-		oldw += len1;
-		if (oldw > (OUTPUT_BUFFER_SIZE * OUTPUT_BUFFER_NUM)) { oldw -= OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM; }
-		len2 = 0;
+		if (m_dsb)m_dsb->GetCurrentPosition(&PlayCursor, &WriteCursor);//再生位置取得
+		len1 = (int)WriteCursor - (int)oldw;//書き込み範囲取得
+		if (len1<0) {
+			len1 = OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM - oldw; len2 = WriteCursor;
+		}
+		if (len2<0)
+			len2 = 0;
 		len4 = len1 + len2;
 		if ((mode >= 10 && mode <= 20) || mode < -10)
 			playwavadpcm(bufwav3, oldw, len1, len2);//データ獲得

@@ -366,7 +366,7 @@ BEGIN
     CONTROL         "x3.0",IDC_CHECK33,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,54,108,22,10
     CONTROL         "x4.0",IDC_CHECK34,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,77,108,22,10
     CONTROL         "x1.0",IDC_CHECK35,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,108,24,10
-    LTEXT           "KBSPC,NEZplug++音量(kpi) 32bit版のみ",IDC_STATIC,7,99,119,8
+    LTEXT           ".SPC,.HES音量(kpi)",IDC_STATIC,7,99,56,8
     CONTROL         "x5.0",IDC_CHECK36,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,101,108,22,10
     CONTROL         "x1.5",IDC_CHECK37,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,31,127,23,10
     CONTROL         "x2.0",IDC_CHECK38,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,54,127,22,10
@@ -686,7 +686,7 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,8,3,13
+ FILEVERSION 0,8,3,15
  PRODUCTVERSION 1,0,0,1
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
@@ -705,9 +705,9 @@ BEGIN
             VALUE "Comments", "ファルコム簡易プレイヤ＋メディアプレイヤ+kpiプレイヤ"
             VALUE "CompanyName", "Pre Prayer Power Soft"
             VALUE "FileDescription", "ogg/mp3/m4a/flac簡易プレイヤ+メディアプレイヤ Ver 0.8c Rel.3"
-            VALUE "FileVersion", "0.8.3.13"
+            VALUE "FileVersion", "0.8.3.15"
             VALUE "InternalName", "ogg YS/ED bgm"
-            VALUE "LegalCopyright", "Copyright (C) 2018.07.16 ちゃちゃ/大原隆誠"
+            VALUE "LegalCopyright", "Copyright (C) 2019.01.13 ちゃちゃ/大原隆誠"
             VALUE "LegalTrademarks", "Pre Prayer Power Soft"
             VALUE "OriginalFilename", "oggYSEDbgm_uni.exe"
             VALUE "ProductName", "ファルコム簡易プレイヤ＋メディアプレイヤ+kpiプレイヤ"

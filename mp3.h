@@ -63,10 +63,10 @@ struct dither {
   mad_fixed_t random;
 };
 
-#define BUFSZ			(2048*6)
+#define BUFSZ			(4096*6)
 #define OUTPUT_BUFFER_SIZE  BUFSZ
 #define OUTPUT_BUFFER_NUM   10
-extern BYTE bufwav3[OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM*2];
+extern BYTE bufwav3[OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM*4];
 extern BOOL wavwait,thend;
 extern char *adbuf,*adbuf2;
 extern ULONG WAVDALen;
@@ -1356,7 +1356,7 @@ static inline signed long linear_dither(unsigned int bits, mad_fixed_t sample,
 	    Close();
 		//m_dwWritten=m_dwAllocSize =m_dwBufferSize= OUTPUT_BUFFER_SIZE*OUTPUT_BUFFER_NUM;
 		if(!pInfo)return false;
-		DWORD dwBitsPerSample =pInfo->dwBitsPerSample;
+		DWORD dwBitsPerSample = pInfo->dwBitsPerSample;
 		ZeroMemory(pInfo, sizeof(SOUNDINFO));
 		HANDLE hFile =  CreateFile(cszFileName, GENERIC_READ,
 							FILE_SHARE_READ | FILE_SHARE_WRITE, 0,

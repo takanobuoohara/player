@@ -906,13 +906,13 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_UNICODE;_WINDOWS;_CRT_SECURE_NO_WARNINGS;FPM_INTEL;_LIB;HAVE_CONFIG_H;ASO_ZEROCHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>TARGET_RT_LITTLE_ENDIAN;WIN32;NDEBUG;_UNICODE;_WINDOWS;_CRT_SECURE_NO_WARNINGS;FPM_INTEL;_LIB;HAVE_CONFIG_H;ASO_ZEROCHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>.\uni/ogg.pch</PrecompiledHeaderOutputFile>
       <AssemblerListingLocation>.\uni/</AssemblerListingLocation>
       <ObjectFileName>.\uni/</ObjectFileName>
@@ -942,7 +942,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX86</TargetMachine>
-      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <IgnoreSpecificDefaultLibraries>uafxcw.lib;Libcmt.lib</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>No</GenerateDebugInformation>
       <TurnOffAssemblyGeneration>false</TurnOffAssemblyGeneration>
@@ -972,13 +972,13 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_UNICODE;_WINDOWS;_CRT_SECURE_NO_WARNINGS;FPM_INTEL;_LIB;HAVE_CONFIG_H;ASO_ZEROCHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>TARGET_RT_LITTLE_ENDIAN;WIN32;NDEBUG;_UNICODE;_WINDOWS;_CRT_SECURE_NO_WARNINGS;FPM_INTEL;_LIB;HAVE_CONFIG_H;ASO_ZEROCHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>.\uni/ogg.pch</PrecompiledHeaderOutputFile>
       <AssemblerListingLocation>.\uni/</AssemblerListingLocation>
       <ObjectFileName>.\uni/</ObjectFileName>
@@ -1008,7 +1008,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX86</TargetMachine>
-      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <IgnoreSpecificDefaultLibraries>uafxcw.lib;Libcmt.lib</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>No</GenerateDebugInformation>
       <TurnOffAssemblyGeneration>false</TurnOffAssemblyGeneration>
@@ -1136,13 +1136,13 @@
       <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
-      <PreprocessorDefinitions>WIN32;DEBUG;_UNICODE;_WINDOWS;_CRT_SECURE_NO_WARNINGS;FPM_INTEL;_LIB;HAVE_CONFIG_H;ASO_ZEROCHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>TARGET_RT_LITTLE_ENDIAN;WIN32;DEBUG;_UNICODE;_WINDOWS;_CRT_SECURE_NO_WARNINGS;FPM_INTEL;_LIB;HAVE_CONFIG_H;ASO_ZEROCHECK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ForceConformanceInForLoopScope>false</ForceConformanceInForLoopScope>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>.\uni/ogg.pch</PrecompiledHeaderOutputFile>
       <AssemblerListingLocation>.\uni/</AssemblerListingLocation>
       <ObjectFileName>.\uni/</ObjectFileName>
@@ -1231,6 +1231,17 @@
     <ClCompile Include="Arc.cpp" />
     <ClCompile Include="AudioSelect.cpp" />
     <ClCompile Include="Br4.cpp" />
+    <ClCompile Include="codec\ag_dec.c" />
+    <ClCompile Include="codec\ALACBitUtilities.c" />
+    <ClCompile Include="codec\ALACDecoder.cpp" />
+    <ClCompile Include="codec\dp_dec.c" />
+    <ClCompile Include="codec\EndianPortable.c" />
+    <ClCompile Include="codec\matrix_dec.c" />
+    <ClCompile Include="codec\mp4atom.c" />
+    <ClCompile Include="codec\mp4meta.c" />
+    <ClCompile Include="codec\mp4sample.c" />
+    <ClCompile Include="codec\mp4tagupdate.c" />
+    <ClCompile Include="codec\mp4util.c" />
     <ClCompile Include="Dino.cpp" />
     <ClCompile Include="Douga.cpp" />
     <ClCompile Include="ED3.cpp" />
@@ -1365,6 +1376,20 @@
     <ClInclude Include="AudioSelect.h" />
     <ClInclude Include="Br4.h" />
     <ClInclude Include="CInt24.h" />
+    <ClInclude Include="codec\aglib.h" />
+    <ClInclude Include="codec\ALACAudioTypes.h" />
+    <ClInclude Include="codec\ALACBitUtilities.h" />
+    <ClInclude Include="codec\ALACDecoder.h" />
+    <ClInclude Include="codec\config.h" />
+    <ClInclude Include="codec\deadbeef.h" />
+    <ClInclude Include="codec\dplib.h" />
+    <ClInclude Include="codec\EndianPortable.h" />
+    <ClInclude Include="codec\filter.h" />
+    <ClInclude Include="codec\matrixlib.h" />
+    <ClInclude Include="codec\mp4ff.h" />
+    <ClInclude Include="codec\mp4ffint.h" />
+    <ClInclude Include="codec\mp4ff_int_types.h" />
+    <ClInclude Include="codec\neaacdec.h" />
     <ClInclude Include="Dino.h" />
     <ClInclude Include="Douga.h" />
     <ClInclude Include="ED3.h" />
@@ -1436,6 +1461,9 @@
     <None Include="res\ogg.ico" />
     <None Include="res\ogg.rc2" />
     <None Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="codec\APPLE_LICENSE.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -4,7 +4,8 @@
 
 #pragma once
 #pragma warning(disable : 4995)
-//#pragma warning( disable : 4995 ) 
+#pragma warning( disable : 4838 ) 
+#pragma warning( disable : 4309 ) 
 #define _AFX_DISABLE_DEPRECATED
 #ifndef _SECURE_ATL
 #define _SECURE_ATL 1
